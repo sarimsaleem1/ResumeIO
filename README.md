@@ -9,11 +9,3 @@ A Streamlit application to download resumes from resume.io in both PDF and DOCX 
 - Responsive design
 - Error handling for invalid tokens
 
-## Setup Instructions
-
-### Local Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/resume-downloader.git
-   cd resume-downloader

@@ -4,103 +4,7 @@ from bs4 import BeautifulSoup
 import io
 from xhtml2pdf import pisa
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 import time
-
-# ApplicationRunner class moved directly into app.py
-class ApplicationRunner:
-    def __init__(self):
-        self.base_url = "https://resume.io/api/app/resumes"
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-    
-    def get_resume_html(self, token):
-        """Fetch resume HTML from resume.io API"""
-        try:
-            response = requests.get(f"{self.base_url}/{token}", headers=self.headers)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("html", "")
-        except Exception as e:
-            print(f"Error fetching resume: {str(e)}")
-            return None
-    
-    def html_to_pdf(self, html_content):
-        """Convert HTML content to PDF format"""
-        try:
-            pdf_bytes = io.BytesIO()
-            pisa.CreatePDF(io.StringIO(html_content), dest=pdf_bytes)
-            pdf_bytes.seek(0)
-            return pdf_bytes.getvalue()
-        except Exception as e:
-            print(f"Error generating PDF: {str(e)}")
-            return None
-    
-    def html_to_docx(self, html_content):
-        """Convert HTML content to DOCX format"""
-        try:
-            doc = Document()
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # Process HTML elements
-            for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'u', 'a']):
-                if element.name.startswith('h'):
-                    # Handle headings
-                    level = int(element.name[1])
-                    heading = doc.add_heading('', level=level)
-                    self._process_text_element(element, heading)
-                
-                elif element.name == 'p':
-                    # Handle paragraphs
-                    paragraph = doc.add_paragraph()
-                    self._process_text_element(element, paragraph)
-                
-                elif element.name in ['ul', 'ol']:
-                    # Handle lists
-                    list_type = 'unordered' if element.name == 'ul' else 'ordered'
-                    for li in element.find_all('li', recursive=False):
-                        paragraph = doc.add_paragraph(
-                            style='List Bullet' if list_type == 'unordered' else 'List Number'
-                        )
-                        self._process_text_element(li, paragraph)
-            
-            # Save to bytes
-            doc_bytes = io.BytesIO()
-            doc.save(doc_bytes)
-            doc_bytes.seek(0)
-            return doc_bytes.getvalue()
-        except Exception as e:
-            print(f"Error generating DOCX: {str(e)}")
-            return None
-    
-    def _process_text_element(self, element, doc_element):
-        """Process text elements with formatting"""
-        for child in element.children:
-            if child.name is None:
-                # Plain text
-                run = doc_element.add_run(str(child))
-            elif child.name == 'strong':
-                # Bold text
-                run = doc_element.add_run(child.get_text())
-                run.bold = True
-            elif child.name == 'em':
-                # Italic text
-                run = doc_element.add_run(child.get_text())
-                run.italic = True
-            elif child.name == 'u':
-                # Underlined text
-                run = doc_element.add_run(child.get_text())
-                run.underline = True
-            elif child.name == 'a':
-                # Hyperlinks
-                run = doc_element.add_run(child.get_text())
-                run.underline = True
-                # Note: Adding actual hyperlinks requires more complex handling
-            else:
-                # Other elements - process recursively
-                self._process_text_element(child, doc_element)
 
 # Page configuration
 st.set_page_config(
@@ -193,46 +97,83 @@ elif st.session_state["current_page"] == "Download Resume":
             with st.spinner("Creating your document..."):
                 time.sleep(1)  # Simulate processing
                 
-                # Create an instance of ApplicationRunner
-                app_runner = ApplicationRunner()
-                
                 # Get HTML content
                 token = str(st.session_state["render_token"]).strip()
-                html_content = app_runner.get_resume_html(token)
+                
+                # Set up headers to mimic a browser request
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept": "application/json",
+                    "Referer": "https://resume.io/"
+                }
+                
+                # Make the API request
+                base_url = "https://resume.io/api/app/resumes"
+                response = requests.get(f"{base_url}/{token}", headers=headers)
                 
                 # Debug information (you can remove these lines if you want)
-                if html_content is None:
+                st.write(f"Response Status: {response.status_code}")
+                if response.status_code != 200:
+                    st.write(f"Response Text: {response.text}")
+                
+                if response.status_code != 200:
                     st.error("Failed to fetch resume. Please check your token.")
                     st.button("Try Again", on_click=lambda: navigate_to("Home"))
                 else:
-                    # Generate PDF and DOCX
-                    pdf_bytes = app_runner.html_to_pdf(html_content)
-                    docx_bytes = app_runner.html_to_docx(html_content)
+                    data = response.json()
+                    html_content = data.get("html", "")
                     
-                    if pdf_bytes is None and docx_bytes is None:
-                        st.error("Failed to generate documents. Please try again.")
+                    if not html_content:
+                        st.error("No resume content found.")
                         st.button("Try Again", on_click=lambda: navigate_to("Home"))
                     else:
+                        # Generate PDF
+                        pdf_bytes = io.BytesIO()
+                        pisa.CreatePDF(io.StringIO(html_content), dest=pdf_bytes)
+                        pdf_bytes.seek(0)
+                        
+                        # Generate DOCX
+                        doc = Document()
+                        soup = BeautifulSoup(html_content, 'html.parser')
+                        
+                        for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'strong', 'em']):
+                            if element.name.startswith('h'):
+                                level = int(element.name[1])
+                                doc.add_heading(element.get_text(), level=level)
+                            elif element.name in ['ul', 'ol']:
+                                for li in element.find_all('li', recursive=False):
+                                    doc.add_paragraph(li.get_text(), style='List Bullet')
+                            elif element.name == 'strong':
+                                run = doc.add_paragraph().add_run(element.get_text())
+                                run.bold = True
+                            elif element.name == 'em':
+                                run = doc.add_paragraph().add_run(element.get_text())
+                                run.italic = True
+                            else:
+                                doc.add_paragraph(element.get_text())
+                        
+                        docx_bytes = io.BytesIO()
+                        doc.save(docx_bytes)
+                        docx_bytes.seek(0)
+                        
                         # Download buttons
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            if pdf_bytes is not None:
-                                st.download_button(
-                                    label="📄 Download PDF",
-                                    data=pdf_bytes,
-                                    file_name=f"resume_{token}.pdf",
-                                    mime="application/pdf"
-                                )
+                            st.download_button(
+                                label="📄 Download PDF",
+                                data=pdf_bytes.getvalue(),
+                                file_name=f"resume_{token}.pdf",
+                                mime="application/pdf"
+                            )
                         
                         with col2:
-                            if docx_bytes is not None:
-                                st.download_button(
-                                    label="📝 Download DOCX",
-                                    data=docx_bytes,
-                                    file_name=f"resume_{token}.docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                )
+                            st.download_button(
+                                label="📝 Download DOCX",
+                                data=docx_bytes.getvalue(),
+                                file_name=f"resume_{token}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
                         
                         st.success("Resume generated successfully!")
                         

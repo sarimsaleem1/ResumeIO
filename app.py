@@ -13,16 +13,39 @@ st.set_page_config(
 )
 
 # Session state initialization
-if "render_token" not in st.session_state:
-    st.session_state["render_token"] = ""
-if "render_token_bool" not in st.session_state:
-    st.session_state["render_token_bool"] = True
+def init_session_state():
+    if "render_token" not in st.session_state:
+        st.session_state["render_token"] = ""
+    if "render_token_bool" not in st.session_state:
+        st.session_state["render_token_bool"] = True
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = "Home"
+
+init_session_state()
+
+# Navigation handler
+def navigate_to(page):
+    st.session_state["current_page"] = page
 
 # Navigation
-page = st.sidebar.radio("Navigation", ["Home", "Download Resume", "About"])
+st.sidebar.title("Navigation")
+if st.sidebar.button("Home", use_container_width=True):
+    navigate_to("Home")
+if st.sidebar.button("Download Resume", use_container_width=True):
+    navigate_to("Download Resume")
+if st.sidebar.button("About", use_container_width=True):
+    navigate_to("About")
+
+# Highlight current page in sidebar
+if st.session_state["current_page"] == "Home":
+    st.sidebar.markdown("**Home**")
+elif st.session_state["current_page"] == "Download Resume":
+    st.sidebar.markdown("**Download Resume**")
+elif st.session_state["current_page"] == "About":
+    st.sidebar.markdown("**About**")
 
 # Home Page
-if page == "Home":
+if st.session_state["current_page"] == "Home":
     st.title("Resume IO Downloader")
     st.write("""
         To fetch your resume from resume.io, you need to get your `rendering token` from 
@@ -46,6 +69,8 @@ if page == "Home":
         if st.session_state["render_token"]:
             st.session_state["render_token_bool"] = False
             st.success("Token accepted! Proceed to download page.")
+            # Automatically navigate to download page after successful token submission
+            navigate_to("Download Resume")
         else:
             st.error("renderToken required to proceed.")
             st.session_state["render_token_bool"] = True
@@ -53,13 +78,14 @@ if page == "Home":
     st.button(
         "Go to Download Resume", 
         disabled=st.session_state["render_token_bool"],
-        on_click=lambda: st.session_state.update({"page": "Download Resume"})
+        on_click=lambda: navigate_to("Download Resume")
     )
 
 # Download Resume Page
-elif page == "Download Resume":
+elif st.session_state["current_page"] == "Download Resume":
     if st.session_state["render_token_bool"]:
         st.error("renderToken required to proceed.")
+        st.button("Back to Home", on_click=lambda: navigate_to("Home"))
     else:
         st.title("Download Your Resume")
         
@@ -74,12 +100,14 @@ elif page == "Download Resume":
                 
                 if response.status_code != 200:
                     st.error("Failed to fetch resume. Please check your token.")
+                    st.button("Try Again", on_click=lambda: navigate_to("Home"))
                 else:
                     data = response.json()
                     html_content = data.get("html", "")
                     
                     if not html_content:
                         st.error("No resume content found.")
+                        st.button("Try Again", on_click=lambda: navigate_to("Home"))
                     else:
                         # Generate PDF
                         pdf_bytes = io.BytesIO()
@@ -122,10 +150,15 @@ elif page == "Download Resume":
                         
                         st.success("Resume generated successfully!")
                         
+                        # Add option to download another resume
+                        st.button("Download Another Resume", on_click=lambda: navigate_to("Home"))
+                        
         except Exception as e:
             st.error(f"Error: {str(e)}")
+            st.button("Try Again", on_click=lambda: navigate_to("Home"))
 
 # About Page
-elif page == "About":
+elif st.session_state["current_page"] == "About":
     st.title("About")
     st.info("This app allows you to download your resume from resume.io in both PDF and DOCX formats.")
+    st.button("Back to Home", on_click=lambda: navigate_to("Home"))

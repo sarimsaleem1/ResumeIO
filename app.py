@@ -29,8 +29,15 @@ if page == "Home":
         https://resume.io/api/app/resumes
     """)
     
-    with st.expander("How to get renderToken"):
-        st.image("images/copytoken.jpg", caption="Copying rendering token")
+    st.markdown("""
+    ### How to get your renderToken:
+    1. Go to https://resume.io and open your resume
+    2. Open your browser's developer tools (F12)
+    3. Go to the Network tab
+    4. Refresh the page and look for a request to `https://resume.io/api/app/resumes/[some_id]`
+    5. Click on that request and check the Response tab
+    6. Copy the `rendering token` from the response
+    """)
     
     render_token = st.text_input("Enter renderToken", placeholder="Paste renderToken here...")
     st.session_state["render_token"] = render_token

@@ -1,5 +1,4 @@
 streamlit>=1.33.0
-streamlit-extras>=0.3.0
 requests>=2.31.0
 beautifulsoup4>=4.12.2
 xhtml2pdf>=0.2.11

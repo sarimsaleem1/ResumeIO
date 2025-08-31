@@ -1,8 +1,8 @@
 import streamlit as st
 from streamlit_navigation_bar import st_navbar
 from streamlit_extras.row import row
-import hydralit_components as hc
 from parser.DocumentEngine import ApplicationRunner
+import time
 
 # Page configuration
 st.set_page_config(
@@ -124,49 +124,73 @@ elif page == "Download Resume":
     else:
         try:
             st.markdown("Let's do the magic for you...")
-            with hc.HyLoader('Creating your document...', hc.Loaders.standard_loaders, index=[3]):
-                app_runner = ApplicationRunner()
+            
+            # Create a placeholder for the loading animation
+            loading_placeholder = st.empty()
+            
+            # Show loading animation
+            with loading_placeholder.container():
+                st.info("Creating your document...")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
                 
-                # Get HTML content
-                html_content = app_runner.get_resume_html(
-                    token=str(st.session_state["render_token"]).strip()
-                )
-                
-                if not html_content:
-                    st.error("Failed to fetch resume. Please check your token.")
-                else:
-                    # Generate both formats
-                    pdf_bytes = app_runner.html_to_pdf(html_content)
-                    docx_bytes = app_runner.html_to_docx(html_content)
-                    
-                    if not pdf_bytes and not docx_bytes:
-                        st.error("Document generation failed. Please try again.")
+                # Simulate progress
+                for i in range(100):
+                    time.sleep(0.02)
+                    progress_bar.progress(i + 1)
+                    if i < 33:
+                        status_text.text("Fetching resume data...")
+                    elif i < 66:
+                        status_text.text("Converting to PDF...")
                     else:
-                        st.success("Resume generated successfully!")
-                        
-                        # Download buttons layout
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            if pdf_bytes:
-                                st.download_button(
-                                    label="📄 Download PDF",
-                                    file_name=f'resume_{st.session_state["render_token"]}.pdf',
-                                    data=pdf_bytes,
-                                    mime="application/pdf"
-                                )
-                        
-                        with col2:
-                            if docx_bytes:
-                                st.download_button(
-                                    label="📝 Download DOCX",
-                                    file_name=f'resume_{st.session_state["render_token"]}.docx',
-                                    data=docx_bytes,
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                )
-                        
-                        st.toast("Documents ready for download!", icon="✅")
-                        
+                        status_text.text("Converting to DOCX...")
+            
+            # Clear the loading animation
+            loading_placeholder.empty()
+            
+            # Process the document
+            app_runner = ApplicationRunner()
+            
+            # Get HTML content
+            html_content = app_runner.get_resume_html(
+                token=str(st.session_state["render_token"]).strip()
+            )
+            
+            if not html_content:
+                st.error("Failed to fetch resume. Please check your token.")
+            else:
+                # Generate both formats
+                pdf_bytes = app_runner.html_to_pdf(html_content)
+                docx_bytes = app_runner.html_to_docx(html_content)
+                
+                if not pdf_bytes and not docx_bytes:
+                    st.error("Document generation failed. Please try again.")
+                else:
+                    st.success("Resume generated successfully!")
+                    
+                    # Download buttons layout
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if pdf_bytes:
+                            st.download_button(
+                                label="📄 Download PDF",
+                                file_name=f'resume_{st.session_state["render_token"]}.pdf',
+                                data=pdf_bytes,
+                                mime="application/pdf"
+                            )
+                    
+                    with col2:
+                        if docx_bytes:
+                            st.download_button(
+                                label="📝 Download DOCX",
+                                file_name=f'resume_{st.session_state["render_token"]}.docx',
+                                data=docx_bytes,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                    
+                    st.toast("Documents ready for download!", icon="✅")
+                    
         except Exception as e:
             st.error(f"Error: {str(e)}", icon="⚠️")
             st.toast("Generation failed. Check your token.", icon="❌")

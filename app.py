@@ -1,10 +1,6 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import io
-from xhtml2pdf import pisa
-from docx import Document
 import time
+from parser.DocumentEngine import ApplicationRunner
 
 # Page configuration
 st.set_page_config(
@@ -97,83 +93,46 @@ elif st.session_state["current_page"] == "Download Resume":
             with st.spinner("Creating your document..."):
                 time.sleep(1)  # Simulate processing
                 
+                # Create an instance of ApplicationRunner
+                app_runner = ApplicationRunner()
+                
                 # Get HTML content
                 token = str(st.session_state["render_token"]).strip()
-                
-                # Set up headers to mimic a browser request
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                    "Accept": "application/json",
-                    "Referer": "https://resume.io/"
-                }
-                
-                # Make the API request
-                base_url = "https://resume.io/api/app/resumes"
-                response = requests.get(f"{base_url}/{token}", headers=headers)
+                html_content = app_runner.get_resume_html(token)
                 
                 # Debug information (you can remove these lines if you want)
-                st.write(f"Response Status: {response.status_code}")
-                if response.status_code != 200:
-                    st.write(f"Response Text: {response.text}")
-                
-                if response.status_code != 200:
+                if html_content is None:
                     st.error("Failed to fetch resume. Please check your token.")
                     st.button("Try Again", on_click=lambda: navigate_to("Home"))
                 else:
-                    data = response.json()
-                    html_content = data.get("html", "")
+                    # Generate PDF and DOCX
+                    pdf_bytes = app_runner.html_to_pdf(html_content)
+                    docx_bytes = app_runner.html_to_docx(html_content)
                     
-                    if not html_content:
-                        st.error("No resume content found.")
+                    if pdf_bytes is None and docx_bytes is None:
+                        st.error("Failed to generate documents. Please try again.")
                         st.button("Try Again", on_click=lambda: navigate_to("Home"))
                     else:
-                        # Generate PDF
-                        pdf_bytes = io.BytesIO()
-                        pisa.CreatePDF(io.StringIO(html_content), dest=pdf_bytes)
-                        pdf_bytes.seek(0)
-                        
-                        # Generate DOCX
-                        doc = Document()
-                        soup = BeautifulSoup(html_content, 'html.parser')
-                        
-                        for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'strong', 'em']):
-                            if element.name.startswith('h'):
-                                level = int(element.name[1])
-                                doc.add_heading(element.get_text(), level=level)
-                            elif element.name in ['ul', 'ol']:
-                                for li in element.find_all('li', recursive=False):
-                                    doc.add_paragraph(li.get_text(), style='List Bullet')
-                            elif element.name == 'strong':
-                                run = doc.add_paragraph().add_run(element.get_text())
-                                run.bold = True
-                            elif element.name == 'em':
-                                run = doc.add_paragraph().add_run(element.get_text())
-                                run.italic = True
-                            else:
-                                doc.add_paragraph(element.get_text())
-                        
-                        docx_bytes = io.BytesIO()
-                        doc.save(docx_bytes)
-                        docx_bytes.seek(0)
-                        
                         # Download buttons
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.download_button(
-                                label="📄 Download PDF",
-                                data=pdf_bytes.getvalue(),
-                                file_name=f"resume_{token}.pdf",
-                                mime="application/pdf"
-                            )
+                            if pdf_bytes is not None:
+                                st.download_button(
+                                    label="📄 Download PDF",
+                                    data=pdf_bytes,
+                                    file_name=f"resume_{token}.pdf",
+                                    mime="application/pdf"
+                                )
                         
                         with col2:
-                            st.download_button(
-                                label="📝 Download DOCX",
-                                data=docx_bytes.getvalue(),
-                                file_name=f"resume_{token}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            )
+                            if docx_bytes is not None:
+                                st.download_button(
+                                    label="📝 Download DOCX",
+                                    data=docx_bytes,
+                                    file_name=f"resume_{token}.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                )
                         
                         st.success("Resume generated successfully!")
                         
